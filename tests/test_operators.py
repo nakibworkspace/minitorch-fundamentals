@@ -37,48 +37,57 @@ small_floats = floats(min_value=-100, max_value=100)
 
 @pytest.mark.task0_2
 @given(small_floats)
-def test_sigmoid_properties(a):
-    """Test mathematical properties of sigmoid function."""
+def test_sigmoid(a):
+    from minitorch.operators import sigmoid, is_close
+
     if math.isfinite(a):
         sig_a = sigmoid(a)
-        # Property 1: Output bounded between 0 and 1
         assert 0 < sig_a < 1
-        # Property 2: sigmoid(0) = 0.5
         if is_close(a, 0.0) == 1.0:
             assert is_close(sig_a, 0.5) == 1.0
-        # Property 3: sigmoid(-x) = 1 - sigmoid(x)
         sig_neg_a = sigmoid(-a)
         expected = 1.0 - sig_a
         assert is_close(sig_neg_a, expected) == 1.0
 
+
 @pytest.mark.task0_2
 @given(small_floats, small_floats, small_floats)
 def test_transitive(a, b, c):
-    """Test transitive property: if a < b and b < c, then a < c."""
+    from minitorch.operators import lt
+
     if all(math.isfinite(v) for v in [a, b, c]):
         if lt(a, b) == 1.0 and lt(b, c) == 1.0:
             assert lt(a, c) == 1.0
 
+
 @pytest.mark.task0_2
 @given(small_floats, small_floats)
 def test_symmetric(x, y):
-    """Test that multiplication is commutative."""
+    from minitorch.operators import mul
+    from minitorch.testing import assert_close
+
     if math.isfinite(x) and math.isfinite(y):
         assert_close(mul(x, y), mul(y, x))
+
 
 @pytest.mark.task0_2
 @given(small_floats, small_floats, small_floats)
 def test_distribute(x, y, z):
-    """Test distributive property: z * (x + y) = z*x + z*y."""
+    from minitorch.operators import mul, add
+    from minitorch.testing import assert_close
+
     if all(math.isfinite(v) for v in [x, y, z]):
         left_side = mul(z, add(x, y))
         right_side = add(mul(z, x), mul(z, y))
         assert_close(left_side, right_side)
 
+
 @pytest.mark.task0_2
 @given(small_floats)
 def test_other(a):
-    """Test additive inverse property: a + (-a) = 0."""
+    from minitorch.operators import add, neg
+    from minitorch.testing import assert_close
+
     if math.isfinite(a):
         result = add(a, neg(a))
         assert_close(result, 0.0)
