@@ -73,14 +73,15 @@ class TensorData:
 
     def permute(self, *order: int) -> TensorData:
         """Permute tensor dimensions."""
-    assert list(sorted(order)) == list(range(len(self.shape)))
+        assert list(sorted(order)) == list(range(len(self.shape)))
 
-    new_shape = tuple(self.shape[o] for o in order)
-    new_strides = tuple(self.strides[o] for o in order)
+        new_shape = tuple(self.shape[o] for o in order)
+        new_strides = tuple(self.strides[o] for o in order)
 
-    return TensorData(self._storage, new_shape, new_strides)
+        return TensorData(self._storage, new_shape, new_strides)
 
-    def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
+
+def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
     """Broadcast two shapes to create a new union shape."""
     result = []
     len1, len2 = len(shape1), len(shape2)
@@ -102,17 +103,17 @@ class TensorData:
     return tuple(reversed(result))
 
 
-    def broadcast_index(
-        big_index: Index,
-        big_shape: Shape,
-        shape: Shape,
-        out_index: OutIndex
-    ) -> None:
-        """Convert index from broadcasted shape to original shape."""
-        offset = len(big_shape) - len(shape)
+def broadcast_index(
+    big_index: Index,
+    big_shape: Shape,
+    shape: Shape,
+    out_index: OutIndex
+) -> None:
+    """Convert index from broadcasted shape to original shape."""
+    offset = len(big_shape) - len(shape)
 
-        for i in range(len(shape)):
-            if shape[i] == 1:
-                out_index[i] = 0
-            else:
-                out_index[i] = big_index[i + offset]
+    for i in range(len(shape)):
+        if shape[i] == 1:
+            out_index[i] = 0
+        else:
+            out_index[i] = big_index[i + offset]
