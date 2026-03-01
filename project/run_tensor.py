@@ -1,84 +1,104 @@
+"""
+Be sure you have minitorch installed in you Virtual Env.
+>>> pip install -Ue .
+"""
+
 import minitorch
-from minitorch import tensor, Tensor
 
-# Network architecture: 2 -> hidden -> hidden -> 1
 
-class TensorNetwork(minitorch.Module):
-    def __init__(self, hidden_size: int = 10):
+
+def RParam(*shape):
+    r = 2 * (minitorch.rand(shape) - 0.5)
+    return minitorch.Parameter(r)
+
+
+class Network(minitorch.Module):
+    def __init__(self, hidden_layers):
         super().__init__()
-        # Layer 1: input (2) -> hidden
-        self.layer1_weights = self.add_parameter(
-            "layer1_weights",
-            minitorch.rand((2, hidden_size), requires_grad=True)
-        )
-        self.layer1_bias = self.add_parameter(
-            "layer1_bias",
-            minitorch.rand((hidden_size,), requires_grad=True)
-        )
 
-        # Layer 2: hidden -> hidden
-        self.layer2_weights = self.add_parameter(
-            "layer2_weights",
-            minitorch.rand((hidden_size, hidden_size), requires_grad=True)
-        )
-        self.layer2_bias = self.add_parameter(
-            "layer2_bias",
-            minitorch.rand((hidden_size,), requires_grad=True)
-        )
+        # Submodules
+        self.layer1 = Linear(2, hidden_layers)
+        self.layer2 = Linear(hidden_layers, hidden_layers)
+        self.layer3 = Linear(hidden_layers, 1)
 
-        # Layer 3: hidden -> output (1)
-        self.layer3_weights = self.add_parameter(
-            "layer3_weights",
-            minitorch.rand((hidden_size, 1), requires_grad=True)
-        )
-        self.layer3_bias = self.add_parameter(
-            "layer3_bias",
-            minitorch.rand((1,), requires_grad=True)
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-        # x shape: (batch_size, 2)
-
-        # Layer 1: linear + relu
-        # TODO: Implement forward pass
-        h1 = ___  # Q1: x @ weights + bias, then relu
-
-        # Layer 2: linear + relu
-        h2 = ___  # Q2: h1 @ weights + bias, then relu
-
-        # Layer 3: linear + sigmoid
-        out = ___  # Q3: h2 @ weights + bias, then sigmoid
-
-        return out
+    def forward(self, x):
+        # ASSIGN2.5
+        h = self.layer1.forward(x).relu()
+        h = self.layer2.forward(h).relu()
+        return self.layer3.forward(h).sigmoid()
+        # END ASSIGN2.5
 
 
-def train(dataset, epochs=500, learning_rate=0.05, hidden_size=10):
-    model = TensorNetwork(hidden_size)
+class Linear(minitorch.Module):
+    def __init__(self, in_size, out_size):
+        super().__init__()
+        self.weights = RParam(in_size, out_size)
+        self.bias = RParam(out_size)
+        self.out_size = out_size
 
-    # Convert dataset to tensors
-    X = tensor([[p[0], p[1]] for p in dataset.X])
-    y = tensor([[p] for p in dataset.y])
+    def forward(self, x):
+        # ASSIGN2.5
+        batch, in_size = x.shape
+        return (
+            self.weights.value.view(1, in_size, self.out_size)
+            * x.view(batch, in_size, 1)
+        ).sum(1).view(batch, self.out_size) + self.bias.value.view(self.out_size)
+        # END ASSIGN2.5
 
-    for epoch in range(epochs):
-        # Forward pass
-        model.train()
-        out = model.forward(X)
 
-        # Loss: mean squared error
-        loss = ((out - y) ** 2).sum() / len(dataset.X)
+def default_log_fn(epoch, total_loss, correct, losses):
+    print("Epoch ", epoch, " loss ", total_loss, "correct", correct)
 
-        # Backward pass
-        loss.backward()
 
-        # Update weights
-        for p in model.parameters():
-            if p.value.grad is not None:
-                p.update(p.value - learning_rate * p.value.grad)
+class TensorTrain:
+    def __init__(self, hidden_layers):
+        self.hidden_layers = hidden_layers
+        self.model = Network(hidden_layers)
 
-        # Zero gradients
-        model.zero_grad_()
+    def run_one(self, x):
+        return self.model.forward(minitorch.tensor([x]))
 
-        if epoch % 50 == 0:
-            print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
+    def run_many(self, X):
+        return self.model.forward(minitorch.tensor(X))
 
-    return model
+    def train(self, data, learning_rate, max_epochs=500, log_fn=default_log_fn):
+
+        self.learning_rate = learning_rate
+        self.max_epochs = max_epochs
+        self.model = Network(self.hidden_layers)
+        optim = minitorch.SGD(self.model.parameters(), learning_rate)
+
+        X = minitorch.tensor(data.X)
+        y = minitorch.tensor(data.y)
+
+        losses = []
+        for epoch in range(1, self.max_epochs + 1):
+            total_loss = 0.0
+            correct = 0
+            optim.zero_grad()
+
+            # Forward
+            out = self.model.forward(X).view(data.N)
+            prob = (out * y) + (out - 1.0) * (y - 1.0)
+
+            loss = -prob.log()
+            (loss / data.N).sum().view(1).backward()
+            total_loss = loss.sum().view(1)[0]
+            losses.append(total_loss)
+
+            # Update
+            optim.step()
+
+            # Logging
+            if epoch % 10 == 0 or epoch == max_epochs:
+                y2 = minitorch.tensor(data.y)
+                correct = int(((out.detach() > 0.5) == y2).sum()[0])
+                log_fn(epoch, total_loss, correct, losses)
+
+
+if __name__ == "__main__":
+    PTS = 50
+    HIDDEN = 2
+    RATE = 0.5
+    data = minitorch.datasets["Simple"](PTS)
+    TensorTrain(HIDDEN).train(data, RATE)
