@@ -78,16 +78,17 @@ def backpropagate(final_var: Variable, deriv: float = 1.0) -> None:
     while stack:
         var, d = stack.pop()
 
-        # accumulate gradient
-        if hasattr(var, "accumulate_derivative"):
-            var.accumulate_derivative(d)
+        if var.history is None:
+            # constant — no grad tracking, skip
+            continue
 
-        # stop if leaf
-        if var.history is None or var.history.last_fn is None:
+        if var.history.last_fn is None:
+            # leaf variable with requires_grad — accumulate gradient
+            if hasattr(var, "accumulate_derivative"):
+                var.accumulate_derivative(d)
             continue
 
         h = var.history
-
         grads = h.last_fn.backward(h.ctx, d)
 
         for inp, g in zip(h.inputs, grads):

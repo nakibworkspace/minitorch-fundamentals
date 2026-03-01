@@ -14,6 +14,7 @@ import minitorch
 
 from . import operators
 from .tensor_ops import SimpleBackend, TensorBackend
+from .fast_conv import tensor_conv1d
 
 if TYPE_CHECKING:
     from typing import Any, List, Tuple
@@ -424,3 +425,33 @@ but was expecting derivative %f from central difference.
             1e-2,
             err_msg=err_msg % (f, vals, x.grad[ind], i, ind, check),
         )
+class Conv1dFun(Function):
+    @classmethod
+    def forward(cls, ctx: Context, input: Tensor, weight: Tensor) -> Tensor:
+        """
+        1D Convolution Forward
+        Args:
+            input: tensor of shape (batch, in_channels, width)
+            weight: tensor of shape (out_channels, in_channels, kernel_width)
+        """
+        ctx.save_for_backward(input, weight)
+        batch, in_channels, width = input.shape
+        out_channels, in_channels2, kw = weight.shape
+        
+        # Calculate output shape
+        out_width = width - kw + 1
+        
+        # Allocate output tensor
+        output = Tensor.zeros((batch, out_channels, out_width), backend=input.backend)
+        
+        # Call low-level function (you need to implement this part in fast_conv)
+        # tensor_conv1d(...)
+        
+        return output
+
+    @classmethod
+    def backward(cls, ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        input, weight = ctx.saved_values
+        # Implement backpropagation logic here
+        # ...
+        return grad_input, grad_weight

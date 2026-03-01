@@ -4,8 +4,7 @@ Be sure you have minitorch installed in you Virtual Env.
 """
 
 import minitorch
-
-
+import minitorch.datasets as datasets
 
 def RParam(*shape):
     r = 2 * (minitorch.rand(shape) - 0.5)
@@ -100,5 +99,5 @@ if __name__ == "__main__":
     PTS = 50
     HIDDEN = 2
     RATE = 0.5
-    data = minitorch.datasets["Simple"](PTS)
+    data = datasets.simple(PTS)
     TensorTrain(HIDDEN).train(data, RATE)

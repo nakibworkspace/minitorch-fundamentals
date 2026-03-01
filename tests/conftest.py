@@ -19,3 +19,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "task2_3: Task 2.3 tensor operations")
     config.addinivalue_line("markers", "task2_4: Task 2.4 tensor autodiff")
     config.addinivalue_line("markers", "task2_5: Task 2.5 tensor training")
+    # Module 4 markers
+    config.addinivalue_line("markers", "task4_1: Task 4.1 1D convolution")
+    config.addinivalue_line("markers", "task4_2: Task 4.2 2D convolution")
+    config.addinivalue_line("markers", "task4_3: Task 4.3 pooling")
+    config.addinivalue_line("markers", "task4_4: Task 4.4 softmax and dropout")
+    config.addinivalue_line("markers", "task4_5: Task 4.5 MNIST training")
