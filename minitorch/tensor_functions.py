@@ -7,6 +7,12 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from typing import Any, List, Tuple
+
+    from .tensor import Tensor
+    from .tensor_data import UserIndex, UserShape
+
 import numpy as np
 from .autodiff import Context, History
 
@@ -15,12 +21,6 @@ import minitorch
 from . import operators
 from .tensor_ops import SimpleBackend, TensorBackend
 from .fast_conv import tensor_conv1d
-
-if TYPE_CHECKING:
-    from typing import Any, List, Tuple
-
-    from .tensor import Tensor
-    from .tensor_data import UserIndex, UserShape
 
 
 def wrap_tuple(x):  # type: ignore
@@ -444,8 +444,12 @@ class Conv1dFun(Function):
         # Allocate output tensor
         output = Tensor.zeros((batch, out_channels, out_width), backend=input.backend)
         
-        # Call low-level function (you need to implement this part in fast_conv)
-        # tensor_conv1d(...)
+        tensor_conv1d(
+            output._tensor._storage, output.shape, output.strides, output.size,
+            input._tensor._storage, input.shape, input.strides,                
+            weight._tensor._storage, weight.shape, weight.strides,
+            False # reverse
+        )
         
         return output
 
@@ -454,4 +458,6 @@ class Conv1dFun(Function):
         input, weight = ctx.saved_values
         # Implement backpropagation logic here
         # ...
+        grad_weight = tensor_conv1d_weight(input, grad_output)
+        grad_input = tensor_conv1d_input(weight, grad_output)
         return grad_input, grad_weight
