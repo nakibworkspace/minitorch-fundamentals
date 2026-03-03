@@ -1,6 +1,6 @@
 from .autodiff import central_difference
 from .scalar import Scalar
-
+from . import operators
 from .autodiff import central_difference, History
 from .scalar import Scalar
 from .tensor_data import TensorData, IndexingError, shape_broadcast
@@ -15,3 +15,9 @@ from .tensor_functions import Conv1dFun
 from .fast_ops import *
 from .tensor_ops import *
 from .cuda_ops import CudaOps
+
+def sum_practice(a):
+    return a.f.add_reduce(a,0)
+
+def mm_practice(a, b):
+    return a.f.matrix_multiply(a, b)
