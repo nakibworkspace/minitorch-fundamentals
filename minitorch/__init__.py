@@ -15,10 +15,11 @@ from .tensor_functions import Conv1dFun
 from .fast_ops import *
 from .tensor_ops import *
 from .cuda_ops import CudaOps
+from .cuda_ops import sum_practice as _cuda_sum_practice
 
 def sum_practice(a):
     # ._tensor is the TensorData object that actually has the ._storage
-    return a.f.add_reduce(a, 0)._tensor
+    return _cuda_sum_practice(a)._tensor
 
 def mm_practice(a, b):
     # Return the internal _tensor so the tests can find ._storage

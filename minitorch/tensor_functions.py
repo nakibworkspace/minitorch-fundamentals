@@ -21,6 +21,7 @@ import minitorch
 from . import operators
 from .tensor_ops import SimpleBackend, TensorBackend
 from .fast_conv import tensor_conv1d
+from .cuda_ops import sum_practice
 
 
 def wrap_tuple(x):  # type: ignore
@@ -269,25 +270,20 @@ class MatMul(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor, t2: Tensor) -> Tensor:
         ctx.save_for_backward(t1, t2)
-        # Use the fast matrix multiply defined in fast_ops.py
         return t1.f.matrix_multiply(t1, t2)
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
         t1, t2 = ctx.saved_values
         
-        # We need to flip the last two dims for the gradient math
-        # dL/dA = dL/dC @ B.T
-        # dL/dB = A.T @ dC
-        
+        # Matrix Calc: dL/dA = grad_out @ B.T | dL/dB = A.T @ grad_out
         t1_T = t1.transpose(len(t1.shape) - 2, len(t1.shape) - 1)
         t2_T = t2.transpose(len(t2.shape) - 2, len(t2.shape) - 1)
 
         grad_t1 = grad_output.f.matrix_multiply(grad_output, t2_T)
         grad_t2 = grad_output.f.matrix_multiply(t1_T, grad_output)
 
-        # CRITICAL: If t1 was (1, 4, 3) and grad_output was (5, 4, 2)
-        # grad_t1 will now be (5, 4, 3). We must sum back to (1, 4, 3).
+        # Handle Batch Broadcasting
         if t1.shape[0] == 1 and grad_t1.shape[0] > 1:
             grad_t1 = grad_t1.sum(0)
         if t2.shape[0] == 1 and grad_t2.shape[0] > 1:
