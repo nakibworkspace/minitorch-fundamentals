@@ -17,7 +17,9 @@ from .tensor_ops import *
 from .cuda_ops import CudaOps
 
 def sum_practice(a):
-    return a.f.add_reduce(a,0)
+    # ._tensor is the TensorData object that actually has the ._storage
+    return a.f.add_reduce(a, 0)._tensor
 
 def mm_practice(a, b):
-    return a.f.matrix_multiply(a, b)
+    # Return the internal _tensor so the tests can find ._storage
+    return a.f.matrix_multiply(a, b)._tensor

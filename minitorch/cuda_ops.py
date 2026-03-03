@@ -99,16 +99,19 @@ def tensor_reduce(fn, reduce_value):
     def _reduce(out, out_shape, out_strides, out_size, a_storage, a_shape, a_strides, reduce_dim, reduce_val):
         i = cuda.grid(1)
         if i < out_size:
+            # IMPORTANT: Use a local array for indices to avoid crosstalk
             out_index = cuda.local.array(MAX_DIMS, numba.int32)
-            _device_to_index(i, out_shape, out_index)
-            o = _device_index_to_position(out_index, out_strides)
+            to_index(i, out_shape, out_index)
+            o = index_to_position(out_index, out_strides)
             
             acc = reduce_val
+            # Iterate over the dimension being reduced
             for s in range(a_shape[reduce_dim]):
                 out_index[reduce_dim] = s
-                j = _device_index_to_position(out_index, a_strides)
+                j = index_to_position(out_index, a_strides)
                 acc = f(acc, a_storage[j])
             out[o] = acc
+    return _reduce
 
     def _launcher(out, a, dim):
         threadsperblock = THREADS_PER_BLOCK
@@ -132,19 +135,18 @@ def _mm_kernel(out, out_shape, out_strides, out_size, a_storage, a_shape, a_stri
     ti = cuda.threadIdx.x
     tj = cuda.threadIdx.y
 
-    # Dimensions: A is (M x K), B is (K x L), Out is (M x L)
     M, K = a_shape[1], a_shape[2]
     L = b_shape[2]
 
     acc = 0.0
     for k_start in range(0, K, TILE):
-        # 1. Load A into shared memory
+        # Load A
         if i < M and (k_start + tj) < K:
             a_shared[ti, tj] = a_storage[batch * a_strides[0] + i * a_strides[1] + (k_start + tj) * a_strides[2]]
         else:
             a_shared[ti, tj] = 0.0
 
-        # 2. Load B into shared memory
+        # Load B
         if (k_start + ti) < K and j < L:
             b_shared[ti, tj] = b_storage[batch * b_strides[0] + (k_start + ti) * b_strides[1] + j * b_strides[2]]
         else:
@@ -152,14 +154,13 @@ def _mm_kernel(out, out_shape, out_strides, out_size, a_storage, a_shape, a_stri
 
         cuda.syncthreads()
 
-        # 3. Compute partial dot product
-        for k_offset in range(TILE):
-            if (k_start + k_offset) < K:
-                acc += a_shared[ti, k_offset] * b_shared[k_offset, tj]
+        # Compute partial dot product - The guard (k_start + k) < K is vital!
+        for k in range(TILE):
+            if (k_start + k) < K:
+                acc += a_shared[ti, k] * b_shared[k, tj]
         
         cuda.syncthreads()
 
-    # 4. Write result to global memory
     if i < M and j < L:
         out[batch * out_strides[0] + i * out_strides[1] + j * out_strides[2]] = acc
 
@@ -171,30 +172,29 @@ def matrix_multiply_launcher(out, a, b):
     TILE = 32
     threadsperblock = (TILE, TILE, 1)
     
-    # 1. Get internal data
+    # 1. Access internal data
     out_data = out._tensor
     a_data = a._tensor
     b_data = b._tensor
 
-    # 2. FORCE shapes to 3D tuples (Batch, Rows, Cols)
-    # This ensures a_shape[2] NEVER causes an IndexError or Illegal Address
-    def ensure_3d(s):
+    # 2. Force all shapes to 3D for the kernel logic
+    def to_3d(s):
         if len(s) == 3: return s
         if len(s) == 2: return (1, s[0], s[1])
         return (1, 1, s[0])
 
-    s_out = ensure_3d(out_data.shape)
-    s_a = ensure_3d(a_data.shape)
-    s_b = ensure_3d(b_data.shape)
+    s_out = to_3d(out_data.shape)
+    s_a = to_3d(a_data.shape)
+    s_b = to_3d(b_data.shape)
 
-    # 3. Calculate grid using guaranteed 3D dimensions
+    # 3. Calculate grid based on 3D dimensions
     blockspergrid = (
         (s_out[1] + TILE - 1) // TILE,
         (s_out[2] + TILE - 1) // TILE,
         s_out[0]
     )
     
-    # 4. PASS THE 3D SHAPES (s_out, s_a, s_b) to the kernel, NOT the raw .shape
+    # 4. Use s_out, s_a, s_b (the 3D versions) inside the kernel call
     _mm_kernel[blockspergrid, threadsperblock](
         out_data._storage, s_out, out_data._strides, out.size,
         a_data._storage, s_a, a_data._strides,
