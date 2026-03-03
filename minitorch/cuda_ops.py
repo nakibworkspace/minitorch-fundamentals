@@ -171,25 +171,33 @@ def matrix_multiply_launcher(out, a, b):
     TILE = 32
     threadsperblock = (TILE, TILE, 1)
     
-    # Use internal ._tensor to get the raw data metadata
+    # 1. Get raw data
     out_data = out._tensor
     a_data = a._tensor
     b_data = b._tensor
 
-    a_batch = a_data.shape[0] if len(a_data.shape) == 3 else 1
-    a_rows = a_data.shape[1] if len(a_data.shape) == 3 else a_data.shape[0]
-    b_cols = b_data.shape[2] if len(b_data.shape) == 3 else b_data.shape[1]
+    # 2. FORCE shapes to be 3D so the kernel indexing (shape[1], shape[2]) always works
+    # This prevents the "tuple index out of range" and Illegal Address errors
+    def to_3d(shape):
+        if len(shape) == 3: return shape
+        return (1, shape[0], shape[1])
 
+    s_out = to_3d(out_data.shape)
+    s_a = to_3d(a_data.shape)
+    s_b = to_3d(b_data.shape)
+
+    # 3. Calculate grid using our guaranteed 3D dimensions
     blockspergrid = (
-        (a_rows + (TILE - 1)) // TILE,
-        (b_cols + (TILE - 1)) // TILE,
-        a_batch
+        (s_out[1] + TILE - 1) // TILE,
+        (s_out[2] + TILE - 1) // TILE,
+        s_out[0]
     )
     
+    # 4. Pass the EXPLICIT 3D shapes into the kernel
     _mm_kernel[blockspergrid, threadsperblock](
-        out_data._storage, out_data._shape, out_data._strides, out.size,
-        a_data._storage, a_data._shape, a_data._strides,
-        b_data._storage, b_data._shape, b_data._strides
+        out_data._storage, s_out, out_data._strides, out.size,
+        a_data._storage, s_a, a_data._strides,
+        b_data._storage, s_b, b_data._strides
     )
 
 # =============================================================================
