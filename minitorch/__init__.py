@@ -12,5 +12,5 @@ from .testing import MathTestVariable, grad_check
 from .tensor_ops import SimpleBackend
 from .module import Module, Parameter
 from .tensor_functions import Conv1dFun
-
-from .nn import softmax, logsoftmax, maxpool2d, dropout, argmax
+from .fast_ops import *
+from .tensor_ops import *

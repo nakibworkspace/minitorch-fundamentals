@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from .tensor import Tensor
     from .tensor_data import Index, Shape, Storage, Strides
 
+from .fast_ops import FastOps
 
 class MapProto(Protocol):
     def __call__(self, x: Tensor, out: Optional[Tensor] = ..., /) -> Tensor:
@@ -358,3 +359,4 @@ def tensor_reduce(
 
 
 SimpleBackend = TensorBackend(SimpleOps)
+FastBackend = TensorBackend(FastOps)

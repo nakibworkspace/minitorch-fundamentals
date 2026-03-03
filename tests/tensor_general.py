@@ -2,6 +2,7 @@ import random
 from typing import Callable, Dict, Iterable, List, Tuple
 
 import numba
+from numba import cuda
 import pytest
 from hypothesis import given, settings
 from hypothesis.strategies import DataObject, data, integers, lists, permutations
@@ -29,7 +30,7 @@ backend_tests = [pytest.param("fast", marks=pytest.mark.task3_1)]
 matmul_tests = [pytest.param("fast", marks=pytest.mark.task3_2)]
 
 
-if numba.cuda.is_available():
+if cuda.is_available():
     # ## Task 3.3
     backend_tests.append(pytest.param("cuda", marks=pytest.mark.task3_3))
 

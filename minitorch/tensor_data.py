@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from numpy import array, float64
 from typing_extensions import TypeAlias
+from numba import njit
 
 from .operators import prod
 
@@ -29,36 +30,33 @@ UserIndex: TypeAlias = Sequence[int]
 UserShape: TypeAlias = Sequence[int]
 UserStrides: TypeAlias = Sequence[int]
 
-
+@njit(inline="always")
 def index_to_position(index: Index, strides: Strides) -> int:
-    """Convert multidimensional index to storage position."""
     position = 0
-    for i, s in zip(index, strides):
-        position += i * s
-    return int(position)
+    # ONLY loop over the length of strides, not the index buffer
+    for i in range(len(strides)):
+        position += index[i] * strides[i]
+    return position
 
+@njit(inline="always")
 def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
-    """Convert ordinal to multidimensional index."""
     cur_ord = ordinal
-    for i in range(len(shape) - 1, -1, -1):
-        out_index[i] = cur_ord % shape[i]
-        cur_ord = cur_ord // shape[i]
+    # Use 'k' or 'm' instead of 'i' to avoid any shadow clashing
+    for k in range(len(shape) - 1, -1, -1):
+        out_index[k] = cur_ord % shape[k]
+        cur_ord //= shape[k]
 
-
+@njit(inline="always")
 def broadcast_index(
-    big_index: Index,
-    big_shape: Shape,
-    shape: Shape,
-    out_index: OutIndex
+    big_index: Index, big_shape: Shape, shape: Shape, out_index: Index
 ) -> None:
-    """Convert index from broadcasted shape to original shape."""
-    offset = len(big_shape) - len(shape)
-
-    for i in range(len(shape)):
-        if shape[i] == 1:
-            out_index[i] = 0
+    # Use 'm' here
+    for m in range(len(shape)):
+        offset = len(big_shape) - len(shape)
+        if shape[m] > 1:
+            out_index[m] = big_index[m + offset]
         else:
-            out_index[i] = big_index[i + offset]
+            out_index[m] = 0
 
 
 def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
