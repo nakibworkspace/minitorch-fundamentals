@@ -14,3 +14,4 @@ from .module import Module, Parameter
 from .tensor_functions import Conv1dFun
 from .fast_ops import *
 from .tensor_ops import *
+from .cuda_ops import CudaOps
