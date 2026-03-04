@@ -2,6 +2,10 @@ import minitorch
 from minitorch import tensor, Tensor
 from minitorch.nn import maxpool2d, logsoftmax, dropout
 from minitorch import Conv2dFun
+from minitorch.fast_ops import FastOps
+from minitorch.tensor_ops import TensorBackend
+
+FastBackend = TensorBackend(FastOps)
 
 class CNN(minitorch.Module):
     def __init__(self):
@@ -52,12 +56,12 @@ def train_mnist():
 
     # Preprocess
     def preprocess(images, labels, limit=1000):
-        X = tensor([
+        X = minitorch.tensor([
             [[img[i*28:(i+1)*28] for i in range(28)]]
             for img in images[:limit]
-        ]) / 255.0
+        ], backend=FastBackend) / 255.0
 
-        y = tensor(labels[:limit])
+        y = minitorch.tensor(labels[:limit], backend=FastBackend)
         return X, y
 
     X_train, y_train = preprocess(train_images, train_labels, 1000)
@@ -88,7 +92,7 @@ def train_mnist():
         model.eval()
         with minitorch.no_grad():
             test_probs = model.forward(X_test)
-            predictions = test_probs.argmax(dim=1)
+            predictions = minitorch.argmax(test_probs, dim=1)
             accuracy = (predictions == y_test).sum() / len(y_test)
 
         print(f"Epoch {epoch}: Loss={loss.item():.4f}, Accuracy={accuracy.item():.2%}")

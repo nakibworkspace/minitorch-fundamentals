@@ -104,10 +104,12 @@ class Linear(Module):
     def __init__(self, in_features: int, out_features: int):
         super().__init__()
         k = 1.0 / math.sqrt(in_features)
-        self.weight = Parameter(rand((in_features, out_features), backend=FastBackend) * (2 * k) - k)
-        self.bias = Parameter(rand((out_features,), backend=FastBackend) * (2 * k) - k)
-        self.weight.value.requires_grad_(True)
-        self.bias.value.requires_grad_(True)
+        w = (rand((in_features, out_features), backend=FastBackend) * (2 * k) - k).detach()
+        b = (rand((out_features,), backend=FastBackend) * (2 * k) - k).detach()
+        w.requires_grad_(True)
+        b.requires_grad_(True)
+        self.weight = Parameter(w)
+        self.bias = Parameter(b)
 
     def __call__(self, x: Tensor) -> Tensor:
         return self.forward(x)
@@ -121,8 +123,9 @@ class Conv2d(Module):
         super().__init__()
         kh, kw = kernel
         k = 1.0 / math.sqrt(in_channels * kh * kw)
-        self.weight = Parameter(rand((out_channels, in_channels, kh, kw), backend=FastBackend) * (2 * k) - k)
-        self.weight.value.requires_grad_(True)
+        w = (rand((out_channels, in_channels, kh, kw), backend=FastBackend) * (2 * k) - k).detach()
+        w.requires_grad_(True)
+        self.weight = Parameter(w)
 
     def __call__(self, x: Tensor) -> Tensor:
         return self.forward(x)
@@ -135,8 +138,9 @@ class Conv1d(Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_width: int):
         super().__init__()
         k = 1.0 / math.sqrt(in_channels * kernel_width)
-        self.weight = Parameter(rand((out_channels, in_channels, kernel_width), backend=FastBackend) * (2 * k) - k)
-        self.weight.value.requires_grad_(True)
+        w = (rand((out_channels, in_channels, kernel_width), backend=FastBackend) * (2 * k) - k).detach()
+        w.requires_grad_(True)
+        self.weight = Parameter(w)
 
     def __call__(self, x: Tensor) -> Tensor:
         return self.forward(x)
