@@ -11,7 +11,7 @@ from .optim import SGD
 from .testing import MathTestVariable, grad_check
 from .tensor_ops import SimpleBackend
 from .module import Module, Parameter
-from .tensor_functions import Conv1dFun
+from .tensor_functions import Conv1dFun, Conv2dFun
 from .fast_ops import *
 from .tensor_ops import *
 from .cuda_ops import CudaOps

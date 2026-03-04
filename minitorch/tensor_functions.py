@@ -20,7 +20,7 @@ import minitorch
 
 from . import operators
 from .tensor_ops import SimpleBackend, TensorBackend
-from .fast_conv import tensor_conv1d
+from .fast_conv import tensor_conv1d, tensor_conv2d
 from .cuda_ops import sum_practice
 
 
@@ -464,15 +464,15 @@ class Conv1dFun(Function):
         out_channels, in_channels2, kw = weight.shape
         
         # Calculate output shape
-        out_width = width - kw + 1
+        out_width = width
         
         # Allocate output tensor
-        output = Tensor.zeros((batch, out_channels, out_width), backend=input.backend)
+        output = input.zeros((batch, out_channels, out_width))
         
         tensor_conv1d(
-            output._tensor._storage, output.shape, output.strides, output.size,
-            input._tensor._storage, input.shape, input.strides,                
-            weight._tensor._storage, weight.shape, weight.strides,
+            output._tensor._storage, output.shape, output._tensor.strides, output.size,
+            input._tensor._storage, input.shape, input._tensor.strides,
+            weight._tensor._storage, weight.shape, weight._tensor.strides,
             False # reverse
         )
         
@@ -485,4 +485,63 @@ class Conv1dFun(Function):
         # ...
         grad_weight = tensor_conv1d_weight(input, grad_output)
         grad_input = tensor_conv1d_input(weight, grad_output)
+        return grad_input, grad_weight
+
+class Conv2dFun(Function):
+    @classmethod
+    def forward(cls, ctx: Context, input: Tensor, weight: Tensor) -> Tensor:
+        """
+        2D Convolution Forward
+        Args:
+            input: tensor of shape (batch, in_channels, height, width)
+            weight: tensor of shape (out_channels, in_channels, kernel_height, kernel_width)
+        """
+        ctx.save_for_backward(input, weight)
+        batch, in_channels, height, width = input.shape
+        out_channels, in_channels2, kh, kw = weight.shape
+
+        out_height = height
+        out_width = width
+
+        output = input.zeros((batch, out_channels, out_height, out_width))
+
+        tensor_conv2d(
+            output._tensor._storage, output.shape, output._tensor.strides, output.size,
+            input._tensor._storage, input.shape, input._tensor.strides,
+            weight._tensor._storage, weight.shape, weight._tensor.strides,
+            False
+        )
+
+        return output
+
+    @classmethod
+    def backward(cls, ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        input, weight = ctx.saved_values
+        batch, in_channels, height, width = input.shape
+        out_channels, in_channels2, kh, kw = weight.shape
+
+        # grad_input: convolve grad_output with weight (reversed)
+        grad_input = input.zeros((batch, in_channels, height, width))
+        # Transpose weight: (out_channels, in_channels, kh, kw) -> (in_channels, out_channels, kh, kw)
+        weight_t = weight.permute(1, 0, 2, 3)
+        tensor_conv2d(
+            grad_input._tensor._storage, grad_input.shape, grad_input._tensor.strides, grad_input.size,
+            grad_output._tensor._storage, grad_output.shape, grad_output._tensor.strides,
+            weight_t.contiguous()._tensor._storage, weight_t.shape, weight_t.contiguous()._tensor.strides,
+            True
+        )
+
+        # grad_weight: convolve input with grad_output
+        grad_weight = weight.zeros((out_channels, in_channels, kh, kw))
+        # Transpose input: (batch, in_channels, h, w) -> (in_channels, batch, h, w)
+        input_t = input.permute(1, 0, 2, 3)
+        # Transpose grad_output: (batch, out_channels, h, w) -> (out_channels, batch, h, w)
+        grad_output_t = grad_output.permute(1, 0, 2, 3)
+        tensor_conv2d(
+            grad_weight._tensor._storage, grad_weight.shape, grad_weight._tensor.strides, grad_weight.size,
+            input_t.contiguous()._tensor._storage, input_t.shape, input_t.contiguous()._tensor.strides,
+            grad_output_t.contiguous()._tensor._storage, grad_output_t.shape, grad_output_t.contiguous()._tensor.strides,
+            False
+        )
+
         return grad_input, grad_weight
