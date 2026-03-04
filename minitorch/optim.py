@@ -34,4 +34,6 @@ class SGD(Optimizer):
                     p.update(Scalar(p.value.data - self.lr * p.value.derivative))
             elif hasattr(p.value, "grad"):
                 if p.value.grad is not None:
-                    p.update(p.value - self.lr * p.value.grad)
+                    new_val = (p.value - self.lr * p.value.grad).detach()
+                    new_val.requires_grad_(True)
+                    p.update(new_val)

@@ -13,6 +13,9 @@ class Parameter:
     
     def __init__(self, value: Any):
         self.value = value
+
+    def update(self, new_value: Any) -> None:
+        self.value = new_value
         
     @property
     def shape(self):
