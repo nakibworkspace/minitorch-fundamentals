@@ -12,6 +12,7 @@ from .testing import MathTestVariable, grad_check
 from .tensor_ops import SimpleBackend
 from .module import Module, Parameter
 from .tensor_functions import Conv1dFun, Conv2dFun
+from .nn import avgpool2d, maxpool2d, softmax, logsoftmax, dropout, max
 from .fast_ops import *
 from .tensor_ops import *
 from .cuda_ops import CudaOps
