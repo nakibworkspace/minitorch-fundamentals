@@ -72,8 +72,8 @@ class Neg(Function):
         return t1.f.neg_map(t1)
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
-        return grad_output.f.neg_map(grad_output)
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
+        return (grad_output.f.neg_map(grad_output),)
 
 
 class Inv(Function):
@@ -83,19 +83,39 @@ class Inv(Function):
         return t1.f.inv_map(t1)
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         (t1,) = ctx.saved_values
-        return grad_output.f.inv_back_zip(t1, grad_output)
+        return (grad_output.f.inv_back_zip(t1, grad_output),)
+
+
+def grad_reduce_broadcast(grad: Tensor, original_shape: UserShape) -> Tensor:
+    """Reduce a gradient tensor to match the original shape by summing over broadcasted dimensions."""
+    if grad.shape == original_shape:
+        return grad
+    # Pad original_shape with leading 1s to match grad's number of dims
+    ndims_added = len(grad.shape) - len(original_shape)
+    padded_shape = (1,) * ndims_added + original_shape
+    # Sum over any dimension where broadcasting expanded a size-1 dim
+    for i in range(len(grad.shape)):
+        if padded_shape[i] == 1 and grad.shape[i] > 1:
+            grad = grad.sum(i)
+    # Reshape to match original (removes extra leading dims of size 1)
+    return grad.contiguous().view(*original_shape)
 
 
 class Add(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor, t2: Tensor) -> Tensor:
+        ctx.save_for_backward(t1.shape, t2.shape)
         return t1.f.add_zip(t1, t2)
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
-        return grad_output, grad_output
+        t1_shape, t2_shape = ctx.saved_values
+        return (
+            grad_reduce_broadcast(grad_output, t1_shape),
+            grad_reduce_broadcast(grad_output, t2_shape),
+        )
 
 
 class Mul(Function):
@@ -107,10 +127,9 @@ class Mul(Function):
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
         a, b = ctx.saved_values
-        return (
-            grad_output.f.mul_zip(grad_output, b),
-            grad_output.f.mul_zip(grad_output, a)
-        )
+        grad_a = grad_reduce_broadcast(grad_output.f.mul_zip(grad_output, b), a.shape)
+        grad_b = grad_reduce_broadcast(grad_output.f.mul_zip(grad_output, a), b.shape)
+        return grad_a, grad_b
 
 
 class Sigmoid(Function):
@@ -121,13 +140,13 @@ class Sigmoid(Function):
         return out
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         (out,) = ctx.saved_values
         one = out.zeros(out.shape)
         one._tensor._storage[:] = 1.0
         one_minus_out = one.f.add_zip(one, out.f.neg_map(out))
         sig_deriv = out.f.mul_zip(out, one_minus_out)
-        return grad_output.f.mul_zip(grad_output, sig_deriv)
+        return (grad_output.f.mul_zip(grad_output, sig_deriv),)
 
 
 class ReLU(Function):
@@ -137,9 +156,9 @@ class ReLU(Function):
         return t1.f.relu_map(t1)
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         (t1,) = ctx.saved_values
-        return grad_output.f.relu_back_zip(t1, grad_output)
+        return (grad_output.f.relu_back_zip(t1, grad_output),)
 
 
 class Log(Function):
@@ -149,9 +168,9 @@ class Log(Function):
         return t1.f.log_map(t1)
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         (t1,) = ctx.saved_values
-        return grad_output.f.log_back_zip(t1, grad_output)
+        return (grad_output.f.log_back_zip(t1, grad_output),)
 
 
 class Exp(Function):
@@ -162,9 +181,9 @@ class Exp(Function):
         return out
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         (out,) = ctx.saved_values
-        return grad_output.f.mul_zip(grad_output, out)
+        return (grad_output.f.mul_zip(grad_output, out),)
 
 
 class Sum(Function):
@@ -176,7 +195,7 @@ class Sum(Function):
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, float]:
         a_shape, dim = ctx.saved_values
-        return grad_output, 0.0
+        return grad_output + grad_output.zeros(a_shape), 0.0
 
 
 class All(Function):
@@ -250,7 +269,7 @@ class View(Function):
         (original,) = ctx.saved_values
         return (
             minitorch.Tensor.make(
-                grad_output._tensor._storage, original, backend=grad_output.backend
+                grad_output.contiguous()._tensor._storage, original, backend=grad_output.backend
             ),
             0.0,
         )
@@ -262,8 +281,8 @@ class Copy(Function):
         return a.f.id_map(a)
 
     @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> Tensor:
-        return grad_output
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
+        return (grad_output,)
 
 
 class MatMul(Function):
