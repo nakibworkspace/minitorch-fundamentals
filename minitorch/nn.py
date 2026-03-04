@@ -89,3 +89,57 @@ def dropout(input: Tensor, rate: float, ignore: bool = False) -> Tensor:
         return input * 0.0
     mask = rand(input.shape, backend=input.backend) > rate
     return input * mask / (1.0 - rate)
+
+
+import math
+from .module import Module, Parameter
+from .tensor_functions import Conv1dFun, Conv2dFun
+from .tensor_ops import TensorBackend
+from .fast_ops import FastOps
+
+FastBackend = TensorBackend(FastOps)
+
+
+class Linear(Module):
+    def __init__(self, in_features: int, out_features: int):
+        super().__init__()
+        k = 1.0 / math.sqrt(in_features)
+        self.weight = Parameter(rand((in_features, out_features), backend=FastBackend) * (2 * k) - k)
+        self.bias = Parameter(rand((out_features,), backend=FastBackend) * (2 * k) - k)
+        self.weight.value.requires_grad_(True)
+        self.bias.value.requires_grad_(True)
+
+    def __call__(self, x: Tensor) -> Tensor:
+        return self.forward(x)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return x @ self.weight.value + self.bias.value
+
+
+class Conv2d(Module):
+    def __init__(self, in_channels: int, out_channels: int, kernel: Tuple[int, int]):
+        super().__init__()
+        kh, kw = kernel
+        k = 1.0 / math.sqrt(in_channels * kh * kw)
+        self.weight = Parameter(rand((out_channels, in_channels, kh, kw), backend=FastBackend) * (2 * k) - k)
+        self.weight.value.requires_grad_(True)
+
+    def __call__(self, x: Tensor) -> Tensor:
+        return self.forward(x)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return Conv2dFun.apply(x, self.weight.value)
+
+
+class Conv1d(Module):
+    def __init__(self, in_channels: int, out_channels: int, kernel_width: int):
+        super().__init__()
+        k = 1.0 / math.sqrt(in_channels * kernel_width)
+        self.weight = Parameter(rand((out_channels, in_channels, kernel_width), backend=FastBackend) * (2 * k) - k)
+        self.weight.value.requires_grad_(True)
+
+    def __call__(self, x: Tensor) -> Tensor:
+        return self.forward(x)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return Conv1dFun.apply(x, self.weight.value)
