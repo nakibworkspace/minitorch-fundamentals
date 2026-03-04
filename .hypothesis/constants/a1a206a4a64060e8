@@ -1,0 +1,4 @@
+# file: /home/poridhian/code/minitorch-fundamentals/minitorch/testing.py
+# hypothesis_version: 6.151.9
+
+[0.01, 1.0, 1.2, 3.5, 5.5, 200, 100000, '2', 'A', '_', 'red']

@@ -6,9 +6,9 @@
 
 # print(dot([1, 2, 3], [4, 5, 6]))
 
-# def assert_close(a: float, b: float) -> None:
-#     if abs(a - b) > 1e-2:
-#         raise AssertionError(f"{a} and {b} are not close enough")
+def assert_close(a: float, b: float) -> None:
+    if abs(a - b) > 1e-2:
+        raise AssertionError(f"{a} and {b} are not close enough")
 
 # from minitorch.autodiff import central_difference
 
@@ -278,7 +278,15 @@ class MathTestVariable(MathTest):
     def complex(a):
         return (((a * 10 + 7).relu() * 6 + 5).relu() * 10).sigmoid().log() / 50
 
-# Add this to minitorch/testing.py
+def sum_practice(a):
+      """Wrapper around CUDA sum_practice that returns the inner TensorData."""
+      from .cuda_ops import sum_practice as _cuda_sum_practice
+      return _cuda_sum_practice(a)._tensor
+
+
+def mm_practice(a, b):
+    """Wrapper around matrix_multiply that returns the inner TensorData."""
+    return a.f.matrix_multiply(a, b)._tensor
 
 def grad_check(f, *args):
     """

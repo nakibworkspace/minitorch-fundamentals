@@ -1,7 +1,7 @@
 from typing import Tuple
 from . import operators
 from .tensor import Tensor
-from .tensor_functions import Function, rand
+from .tensor_functions import Function, rand, zeros
 
 
 def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
@@ -147,3 +147,20 @@ class Conv1d(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return Conv1dFun.apply(x, self.weight.value)
+
+def one_hot(labels, num_classes):                                                                                                                                 
+      """Convert integer labels to one-hot encoded tensor."""                                                                                                       
+      n = labels.size                                                                                                                                               
+      out = zeros((n, num_classes), backend=labels.backend)                                                                                                         
+      for i in range(n):                                                                                                                                            
+          label_idx = int(float(labels._tensor._storage[i]))                                                                                                        
+          out._tensor._storage[i * num_classes + label_idx] = 1.0
+      return out
+
+class no_grad:
+      """Context manager to disable gradient tracking."""
+      def __enter__(self):
+          return self
+
+      def __exit__(self, *args):
+          pass
