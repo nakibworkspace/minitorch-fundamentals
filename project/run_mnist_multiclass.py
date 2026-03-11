@@ -48,54 +48,84 @@ class CNN(minitorch.Module):
 
 
 def train_mnist():
-    # Load MNIST data
-    from mnist import MNIST
-    mndata = MNIST('data/mnist')
-    train_images, train_labels = mndata.load_training()
-    test_images, test_labels = mndata.load_testing()
+    # Load MNIST data via sklearn
+    from sklearn.datasets import fetch_openml
+    import numpy as np
 
-    # Preprocess
-    def preprocess(images, labels, limit=1000):
-        X = minitorch.tensor([
-            [[img[i*28:(i+1)*28] for i in range(28)]]
-            for img in images[:limit]
-        ], backend=FastBackend) / 255.0
+    mnist = fetch_openml('mnist_784', version=1, as_frame=False)
+    images, labels = mnist.data, mnist.target.astype(int)
 
-        y = minitorch.tensor(labels[:limit], backend=FastBackend)
-        return X, y
+    # Shuffle and split
+    n_train, n_test = 5000, 500
+    idx = np.random.permutation(len(images))
+    train_idx, test_idx = idx[:n_train], idx[n_train:n_train + n_test]
 
-    X_train, y_train = preprocess(train_images, train_labels, 1000)
-    X_test, y_test = preprocess(test_images, test_labels, 200)
+    def img_to_list(flat_img):
+        """Convert flat 784-pixel image to [1, 28, 28] nested list, normalized."""
+        return [[(float(flat_img[i * 28 + j]) / 255.0) for j in range(28)] for i in range(28)]
+
+    # Keep training data as Python lists so we can slice per batch
+    X_train_list = [[img_to_list(images[i])] for i in train_idx]
+    y_train_list = [float(labels[i]) for i in train_idx]
+
+    # Test data as tensors (evaluated in one shot)
+    X_test = minitorch.tensor([
+        [img_to_list(images[i])] for i in test_idx
+    ], backend=FastBackend)
+    y_test = minitorch.tensor([float(labels[i]) for i in test_idx], backend=FastBackend)
 
     # Create model
     model = CNN()
-    optimizer = minitorch.SGD(model.parameters(), lr=0.01)
+    optimizer = minitorch.SGD(model.parameters(), lr=0.5)
+
+    import random
+
+    BATCH_SIZE = 32
+    n_train = len(X_train_list)
 
     # Training loop
     for epoch in range(20):
         model.train()
 
-        # Forward
-        log_probs = model.forward(X_train)
+        indices = list(range(n_train))
+        random.shuffle(indices)
 
-        # NLL Loss
-        loss = -(log_probs * minitorch.one_hot(y_train, 10)).sum() / len(y_train)
+        total_loss = 0.0
+        n_batches = 0
 
-        # Backward
-        loss.backward()
+        for start in range(0, n_train, BATCH_SIZE):
+            end = min(start + BATCH_SIZE, n_train)
+            batch_idx = indices[start:end]
+            bs = end - start
 
-        # Update
-        optimizer.step()
-        optimizer.zero_grad()
+            X_batch = minitorch.tensor(
+                [X_train_list[i] for i in batch_idx],
+                backend=FastBackend
+            )
+            y_batch = minitorch.tensor(
+                [y_train_list[i] for i in batch_idx],
+                backend=FastBackend
+            )
+
+            optimizer.zero_grad()
+            log_probs = model.forward(X_batch)
+            loss = -(log_probs * minitorch.one_hot(y_batch, 10)).sum() / bs
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+            n_batches += 1
+
+        avg_loss = total_loss / n_batches
 
         # Evaluate
         model.eval()
-        with minitorch.no_grad():
-            test_probs = model.forward(X_test)
-            predictions = minitorch.argmax(test_probs, dim=1)
-            accuracy = (predictions == y_test).sum() / len(y_test)
+        test_probs = model.forward(X_test)
+        predictions = minitorch.argmax(test_probs, dim=1)
+        targets = minitorch.one_hot(y_test, 10)
+        accuracy = (predictions * targets).sum() / y_test.size
 
-        print(f"Epoch {epoch}: Loss={loss.item():.4f}, Accuracy={accuracy.item():.2%}")
+        print(f"Epoch {epoch}: Loss={avg_loss:.4f}, Accuracy={accuracy.item():.2%}")
 
 
 if __name__ == "__main__":

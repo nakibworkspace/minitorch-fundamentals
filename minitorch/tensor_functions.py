@@ -296,8 +296,13 @@ class MatMul(Function):
         t1, t2 = ctx.saved_values
         
         # Matrix Calc: dL/dA = grad_out @ B.T | dL/dB = A.T @ grad_out
-        t1_T = t1.transpose(len(t1.shape) - 2, len(t1.shape) - 1)
-        t2_T = t2.transpose(len(t2.shape) - 2, len(t2.shape) - 1)
+        dims = list(range(len(t1.shape)))
+        dims[-2], dims[-1] = dims[-1], dims[-2]
+        t1_T = t1.permute(*dims)
+
+        dims = list(range(len(t2.shape)))
+        dims[-2], dims[-1] = dims[-1], dims[-2]
+        t2_T = t2.permute(*dims)
 
         grad_t1 = grad_output.f.matrix_multiply(grad_output, t2_T)
         grad_t2 = grad_output.f.matrix_multiply(t1_T, grad_output)
@@ -532,16 +537,19 @@ class Conv2dFun(Function):
         )
 
         # grad_weight: convolve input with grad_output
-        grad_weight = weight.zeros((out_channels, in_channels, kh, kw))
         # Transpose input: (batch, in_channels, h, w) -> (in_channels, batch, h, w)
-        input_t = input.permute(1, 0, 2, 3)
+        input_t = input.permute(1, 0, 2, 3).contiguous()
         # Transpose grad_output: (batch, out_channels, h, w) -> (out_channels, batch, h, w)
-        grad_output_t = grad_output.permute(1, 0, 2, 3)
+        grad_output_t = grad_output.permute(1, 0, 2, 3).contiguous()
+        # Output shape (in_channels, out_channels, kh, kw) so batch loop aligns with input_t dim 0
+        grad_weight_t = weight.zeros((in_channels, out_channels, kh, kw))
         tensor_conv2d(
-            grad_weight._tensor._storage, grad_weight.shape, grad_weight._tensor.strides, grad_weight.size,
-            input_t.contiguous()._tensor._storage, input_t.shape, input_t.contiguous()._tensor.strides,
-            grad_output_t.contiguous()._tensor._storage, grad_output_t.shape, grad_output_t.contiguous()._tensor.strides,
+            grad_weight_t._tensor._storage, grad_weight_t.shape, grad_weight_t._tensor.strides, grad_weight_t.size,
+            input_t._tensor._storage, input_t.shape, input_t._tensor.strides,
+            grad_output_t._tensor._storage, grad_output_t.shape, grad_output_t._tensor.strides,
             False
         )
+        # Permute back to (out_channels, in_channels, kh, kw)
+        grad_weight = grad_weight_t.permute(1, 0, 2, 3).contiguous()
 
         return grad_input, grad_weight

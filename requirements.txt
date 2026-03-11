@@ -6,3 +6,4 @@ numpy>=1.21.0
 black>=22.0
 flake8>=4.0
 numba
+scikit-learn
